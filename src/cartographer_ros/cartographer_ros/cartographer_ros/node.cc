@@ -48,6 +48,11 @@
 #include "sensor_msgs/PointCloud2.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "visualization_msgs/MarkerArray.h"
+//add lmf
+#include<iostream>
+#include<fstream>
+#include<cmath>
+using namespace std;
 
 // lx add
 #include "cartographer/mapping/id.h"
@@ -269,6 +274,71 @@ bool Node::HandleTrajectoryQuery(
   }
   // 获取轨迹
   map_builder_bridge_.HandleTrajectoryQuery(request, response);
+
+  /////////////////////////////////////add by lmf
+  //  std:: ofstream sfs;  
+  //  sfs.open("/home/lmf/pcd&traj/select_point.txt",ios::app );
+  //  std:: ofstream afs;  
+  //  afs.open("/home/lmf/pcd&traj/all_trajectory.txt",ios::app );
+  std::cout << "receiving" << std::endl;
+  std::string txt_filename1 = "/home/lmf/pcd&traj/select_point.txt";
+  std::string txt_filename2 = "/home/lmf/pcd&traj/all_trajectory.txt";
+  std::ofstream soutf(txt_filename1, std::ios::app);
+  std::ofstream aoutf(txt_filename2, std::ios::app);
+  for (int i = 0; i < response.trajectory.size(); i++){
+    int32_t sec = response.trajectory[i].header.stamp.sec;
+    int32_t nsec = response.trajectory[i].header.stamp.nsec;
+   current_x = response.trajectory[i].pose.position.x;
+   current_y = response.trajectory[i].pose.position.y;
+   // double z = response.trajectory[i].pose.position.z;
+    Euro_distance += std::sqrt((current_x-last_x)*(current_x-last_x)+(current_y-last_y)*(current_y-last_y));
+    Total_distance+=  std::sqrt((current_x-last_x)*(current_x-last_x)+(current_y-last_y)*(current_y-last_y));
+    last_x = current_x;
+    last_y = current_y;
+    // afs <<std::setprecision(20) <<sec<< "." <<nsec << " " << Total_distance << " " << last_x << " " << last_y  << std::endl;
+    aoutf <<std::setprecision(20) <<sec<< "." <<nsec << " " << Total_distance << " " << last_x << " " << last_y  << std::endl;
+
+    if(Euro_distance > 0.5){
+        std::cout<<"Euro_distance : "<<Euro_distance<<std::endl;
+        // sfs <<std::setprecision(20) <<sec << "." <<nsec << " " << Euro_distance << " " << last_x << " " << last_y  << std::endl;
+        soutf <<std::setprecision(20) <<sec << "." <<nsec << " " << Euro_distance << " " << last_x << " " << last_y  << std::endl;
+        
+        Euro_distance = 0;
+
+        // carto::sensor::TimedPointCloud point_cloud;
+        // point_cloud.reserve(trajectory_data.local_slam_data->range_data_in_local
+        //                             .returns.size());
+
+        // // 获取local_slam_data的点云数据, 填入到point_cloud中
+        // for (const cartographer::sensor::RangefinderPoint point :
+        //         trajectory_data.local_slam_data->range_data_in_local.returns) {
+        //     // 这里的虽然使用的是带时间戳的点云结构, 但是数据点的时间全是0.f
+        //     point_cloud.push_back(cartographer::sensor::ToTimedRangefinderPoint(
+        //             point, 0.f /* time */));
+        // }
+
+        // // 先将点云转换成ROS的格式,再发布scan_matched_point_cloud点云
+        // auto ros_point_cloud_tosave = ToPointCloud2Message(
+        //         carto::common::ToUniversal(trajectory_data.local_slam_data->time),
+        //         node_options_.map_frame,
+        //         // 将雷达坐标系下的点云转换成地图坐标系下的点云
+        //         carto::sensor::TransformTimedPointCloud(
+        //                 point_cloud, trajectory_data.local_to_map.cast<float>()));
+
+        // LOG(INFO) << "Saving map to pcd files ...";
+        // pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud_map(new pcl::PointCloud<pcl::PointXYZ>());
+        // pcl::fromROSMsg(ros_point_cloud_tosave, *pcl_point_cloud_map);
+        // //pcl::fromROSMsg(ros_point_cloud_map_, *pcl_point_cloud_map);
+        // pcl::io::savePCDFileASCII("/home/lmf/pcd&traj/pcd/"+std::to_string response.trajectory[i].header.stamp.toSec())+".pcd" , *pcl_point_cloud_map);
+        // LOG(INFO) << "Pcd written to " << "/home/lmf/pcd&traj/pcd/"+std::to_string( response.trajectory[i].header.stamp.toSec()) << ".pcd";
+
+    }
+    // outf << std::setprecision(20) << sec << "." << nsec << " " << x << " " << y << " " << z << std::endl;
+    // ofs <<std::setprecision(20) << sec << "." << nsec << " " << x << " " << y << " " << z << std::endl;
+  }
+  // sfs.close();
+  // afs.close();
+   // 保存轨迹为txt文件
   return true;
 }
 
@@ -346,8 +416,17 @@ void Node::AddSensorSamplers(const int trajectory_id,
  *
  * @param[in] timer_event
  */
+
+
 void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
   absl::MutexLock lock(&mutex_);
+  //add by lmf
+  // std:: ofstream ofs;  
+  //  ofs.open("/home/lmf/time.txt",ios::out );
+  //   std:: ofstream sfs;  
+  //  sfs.open("/home/lmf/pcd&traj/select_point.txt",ios::app );
+  //   std:: ofstream afs;  
+  //  afs.open("/home/lmf/pcd&traj/all_trajectory.txt",ios::app );
   for (const auto& entry : map_builder_bridge_.GetLocalTrajectoryData()) {
     // entry的数据类型为std::unordered_map<int,MapBuilderBridge::LocalTrajectoryData>
     // entry.first 就是轨迹的id, entry.second 就是 LocalTrajectoryData
@@ -417,6 +496,8 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
 
     // 保存当前的时间戳, 以防止对同一时间戳进行重复更新
     last_published_tf_stamps_[entry.first] = stamped_transform.header.stamp;
+    //add by lmf
+    // ofs  << stamped_transform.header.stamp << endl;
 
     const Rigid3d tracking_to_local_3d =
         node_options_.use_pose_extrapolator
@@ -488,66 +569,133 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
         pose_msg.pose = ToGeometryMsgPose(tracking_to_map);
         tracked_pose_publisher_.publish(pose_msg);
 
-        //zhanglei add
+
+
+         //zhanglei add
+          if(SaveRange){
+         string timestring = std::to_string(ToRos(trajectory_data.local_slam_data->time).toSec()).substr(0,12);
+         std::cout<<timestring<<std::endl;
+         std::cout<<vTimeStamps[0]<<std::endl;
+
+         //bool bematched = (vTimeStamps[TimeStampid] == timestring);
+         bool bematched = false;
+         for(auto timestamp:vTimeStamps){
+             if(timestamp == timestring){
+                 bematched = true;
+                 continue;
+             }
+         }
+         if(bematched){
+
+              std::cout<<"Matched"<<std::endl;
+              TimeStampid++;
+              carto::sensor::TimedPointCloud point_cloud;
+              point_cloud.reserve(trajectory_data.local_slam_data->range_data_in_local
+                                                   .returns.size());
+
+              // 获取local_slam_data的点云数据, 填入到point_cloud中
+              for (const cartographer::sensor::RangefinderPoint point :
+              trajectory_data.local_slam_data->range_data_in_local.returns) {
+                  // 这里的虽然使用的是带时间戳的点云结构, 但是数据点的时间全是0.f
+                  point_cloud.push_back(cartographer::sensor::ToTimedRangefinderPoint(
+                          point, 0.f ));
+              }
+
+               //先将点云转换成ROS的格式,再发布scan_matched_point_cloud点云
+                       auto ros_point_cloud_tosave = ToPointCloud2Message(
+                               carto::common::ToUniversal(trajectory_data.local_slam_data->time),
+                               node_options_.map_frame,
+                               // 将雷达坐标系下的点云转换成地图坐标系下的点云
+                               carto::sensor::TransformTimedPointCloud(
+                                       point_cloud, trajectory_data.local_to_map.cast<float>()));
+
+
+
+                       LOG(INFO) << "Saving map to pcd files ...";
+                       pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud_map(new pcl::PointCloud<pcl::PointXYZ>());
+                       pcl::fromROSMsg(ros_point_cloud_tosave, *pcl_point_cloud_map);
+                       pcl::io::savePCDFileASCII("/home/zhanglei/Cart/clion_carto_ws/SavedData/"+std::to_string(pose_msg.header.stamp.toSec())+".pcd" , *pcl_point_cloud_map);
+                       LOG(INFO) << "Pcd written to " << "/home/zhanglei/Cart/clion_carto_ws/SavedData/"+std::to_string(pose_msg.header.stamp.toSec()) << ".pcd";
+
+          }
+            else{
+                std::cout<<"No matched!"<<std::endl;
+//                std::cout<<"TimeStamp in txt is : "<<vTimeStamps[TimeStampid]<<std::endl;
+//                std::cout<<"TimeStamp in ros is : "<<timestring<<std::endl;
+            }
+
+          }
         //pose_msg为当前时刻的位姿，pose_msg.pose.position.x  ~.y 代表机器人当前在map坐标系中的x 、y坐标
         //利用不同时刻的pose,计算累计欧基里德距离Euro_distanse
         //当Euro_distance大于0.5的时候，发布点云数据
+        // if(SaveRange)
+        // {
+        //     current_x = pose_msg.pose.position.x;
+        //     current_y = pose_msg.pose.position.y;
+        //     Euro_distance += std::sqrt((current_x-last_x)*(current_x-last_x)+(current_y-last_y)*(current_y-last_y));
+        //     Total_distance+=  std::sqrt((current_x-last_x)*(current_x-last_x)+(current_y-last_y)*(current_y-last_y));
+        //     last_x = current_x;
+        //     last_y = current_y;
+        //      afs <<std::setprecision(20) << pose_msg.header.stamp.sec << "." <<pose_msg.header.stamp. nsec << " " << Total_distance << " " << last_x << " " << last_y  << std::endl;
+        //     if(Euro_distance > 0.5){
+        //         std::cout<<"Euro_distance : "<<Euro_distance<<std::endl;
+        //         sfs <<std::setprecision(20) << pose_msg.header.stamp.sec << "." <<pose_msg.header.stamp. nsec << " " << Euro_distance << " " << last_x << " " << last_y  << std::endl;
 
-        if(SaveRange)
-        {
-            current_x = pose_msg.pose.position.x;
-            current_y = pose_msg.pose.position.y;
-            Euro_distance += std::sqrt((current_x-last_x)*(current_x-last_x)+(current_y-last_y)*(current_y-last_y));
-            last_x = current_x;
-            last_y = current_y;
-            if(Euro_distance > 0.5){
-                std::cout<<"Euro_distance : "<<Euro_distance<<std::endl;
+        //         carto::sensor::TimedPointCloud point_cloud;
+        //         point_cloud.reserve(trajectory_data.local_slam_data->range_data_in_local
+        //                                     .returns.size());
 
-                carto::sensor::TimedPointCloud point_cloud;
-                point_cloud.reserve(trajectory_data.local_slam_data->range_data_in_local
-                                            .returns.size());
+        //         // 获取local_slam_data的点云数据, 填入到point_cloud中
+        //         for (const cartographer::sensor::RangefinderPoint point :
+        //                 trajectory_data.local_slam_data->range_data_in_local.returns) {
+        //             // 这里的虽然使用的是带时间戳的点云结构, 但是数据点的时间全是0.f
+        //             point_cloud.push_back(cartographer::sensor::ToTimedRangefinderPoint(
+        //                     point, 0.f /* time */));
+        //         }
 
-                // 获取local_slam_data的点云数据, 填入到point_cloud中
-                for (const cartographer::sensor::RangefinderPoint point :
-                        trajectory_data.local_slam_data->range_data_in_local.returns) {
-                    // 这里的虽然使用的是带时间戳的点云结构, 但是数据点的时间全是0.f
-                    point_cloud.push_back(cartographer::sensor::ToTimedRangefinderPoint(
-                            point, 0.f /* time */));
-                }
-
-                // 先将点云转换成ROS的格式,再发布scan_matched_point_cloud点云
-                auto ros_point_cloud_tosave = ToPointCloud2Message(
-                        carto::common::ToUniversal(trajectory_data.local_slam_data->time),
-                        node_options_.map_frame,
-                        // 将雷达坐标系下的点云转换成地图坐标系下的点云
-                        carto::sensor::TransformTimedPointCloud(
-                                point_cloud, trajectory_data.local_to_map.cast<float>()));
-
-
-
-                LOG(INFO) << "Saving map to pcd files ...";
-                pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud_map(new pcl::PointCloud<pcl::PointXYZ>());
-                pcl::fromROSMsg(ros_point_cloud_tosave, *pcl_point_cloud_map);
-                pcl::io::savePCDFileASCII("/home/zhanglei/Cart/clion_carto_ws/SavedData/"+std::to_string(pose_msg.header.stamp.toSec())+".pcd" , *pcl_point_cloud_map);
-                LOG(INFO) << "Pcd written to " << "/home/zhanglei/Cart/clion_carto_ws/SavedData/"+std::to_string(pose_msg.header.stamp.toSec()) << ".pcd";
-
-                Euro_distance = 0;
-            }
-        }
+        //         // 先将点云转换成ROS的格式,再发布scan_matched_point_cloud点云
+        //         auto ros_point_cloud_tosave = ToPointCloud2Message(
+        //                 carto::common::ToUniversal(trajectory_data.local_slam_data->time),
+        //                 node_options_.map_frame,
+        //                 // 将雷达坐标系下的点云转换成地图坐标系下的点云
+        //                 carto::sensor::TransformTimedPointCloud(
+        //                         point_cloud, trajectory_data.local_to_map.cast<float>()));
 
 
-        //zhanglei add
-        //set these to param and publish it in a new node(carto_odom)
-          node_handle_.setParam("position_x", pose_msg.pose.position.x);
-          node_handle_.setParam("position_y", pose_msg.pose.position.y);
-          node_handle_.setParam("orientation_x", pose_msg.pose.orientation.x);
-          node_handle_.setParam("orientation_y", pose_msg.pose.orientation.y);
-          node_handle_.setParam("orientation_z", pose_msg.pose.orientation.z);
-          node_handle_.setParam("orientation_w", pose_msg.pose.orientation.w);
+
+        //         LOG(INFO) << "Saving map to pcd files ...";
+        //         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud_map(new pcl::PointCloud<pcl::PointXYZ>());
+        //         pcl::fromROSMsg(ros_point_cloud_tosave, *pcl_point_cloud_map);
+        //         pcl::io::savePCDFileASCII("/home/lmf/pcd&traj/pcd/"+std::to_string(pose_msg.header.stamp.toSec())+".pcd" , *pcl_point_cloud_map);
+        //         LOG(INFO) << "Pcd written to " << "/home/lmf/pcd&traj/pcd/"+std::to_string(pose_msg.header.stamp.toSec()) << ".pcd";
+
+        //         Euro_distance = 0;
+        //     }
+        // }
+        // sfs.close();
+        // afs.close();
+
 
       }
     }
   }
+  // ofs.close();
+}
+
+void Node::LoadTimeStampe(const std::string& _filename)
+{
+
+    std::string fileName = "/home/zhanglei/Cart/clion_carto_ws/sel_time_stamp.txt";
+    std::ifstream loadFile(fileName,std::ios::in);
+    if (!loadFile) {
+        std::cout<<"Load Failed"<<std::endl;
+    }
+    std::string timestamp;
+    while (getline(loadFile, timestamp))
+    {
+        vTimeStamps.push_back(timestamp.substr(0,12));
+    }
+    std::cout<<"Load Success!"<<std::endl;
 }
 
 // 每30e-3s发布一次轨迹路径点数据
@@ -1263,7 +1411,7 @@ void Node::HandleMultiEchoLaserScanMessage(
       ->HandleMultiEchoLaserScanMessage(sensor_id, msg);
 }
 
-// 调用SensorBridge的传感器处理函数进行数据处理F
+// 调用SensorBridge的传感器处理函数进行数据处理
 void Node::HandlePointCloud2Message(
     const int trajectory_id, const std::string& sensor_id,
     const sensor_msgs::PointCloud2::ConstPtr& msg) {

@@ -22,6 +22,11 @@
 #include "gflags/gflags.h"
 #include "tf2_ros/transform_listener.h"
 
+//zhanglei add
+#include<iostream>
+#include<fstream>
+
+
 /**
  * note: gflags是一套命令行参数解析工具
  * DEFINE_bool在gflags.h中定义
@@ -85,6 +90,10 @@ void Run() {
   Node node(node_options, std::move(map_builder), &tf_buffer,
             FLAGS_collect_metrics);
 
+  const std::string& _filename=" ";
+  node.LoadTimeStampe(_filename);
+
+
   // 如果加载了pbstream文件, 就执行这个函数
   if (!FLAGS_load_state_filename.empty()) {
     node.LoadState(FLAGS_load_state_filename, FLAGS_load_frozen_state);
@@ -114,6 +123,11 @@ void Run() {
 }  // namespace cartographer_ros
 
 int main(int argc, char** argv) {
+
+
+
+    //std::cout<<"the first data is"<<cartographer_ros::Node::vTimeStamps[0]<<std::endl;
+
 
   // note: 初始化glog库
   google::InitGoogleLogging(argv[0]);

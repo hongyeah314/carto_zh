@@ -130,7 +130,12 @@ class Node {
   double last_x = 0;
   double last_y = 0;
   double Euro_distance = 0;
+  std::vector<std::string> vTimeStamps;
+  int TimeStampid = 0;
+  void LoadTimeStampe(const std::string& filename);
 
+    //lmf add
+  double  Total_distance = 0;
 
  private:
   struct Subscriber {
